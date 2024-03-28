@@ -1,0 +1,7 @@
+**/*.o
+*.o
+.vscode
+**/poochat
+**/poochat-client
+poochat
+poochat-client
