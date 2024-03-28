@@ -43,7 +43,7 @@ bool pc_process_line(char* line) {
 int main(void) {
     char* line;
 
-    while (1) {
+    for (;;) {
         line = pc_getline();
         if (line == NULL)
             continue;
