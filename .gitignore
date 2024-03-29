@@ -5,4 +5,5 @@
 **/poochat-client
 poochat
 poochat-client
+*.a
 external/*
