@@ -2,8 +2,8 @@
 *.o
 .vscode
 **/poochat
-**/poochat-client
+**/poochat-server
 poochat
-poochat-client
+poochat-server
 *.a
 external/*
