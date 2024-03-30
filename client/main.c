@@ -5,9 +5,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "cmds.h"
 #include "common.h"
+#include "packet.h"
 
 #define BROKER_ADDR    "tcp://localhost:1883"
 #define MAX_ROOMID_LEN 50 //
@@ -74,7 +76,40 @@ int on_new_msg(void* _, char* topic_name, int topic_len,
     return 1;
 }
 
+void send_msg(State* state, const char* txt) {
+    time_t tm;
+    time(&tm);
+
+    Packet pk = Packet_new(state->client_name, tm, txt);
+    const char* payload = Packet_to_json(&pk);
+
+    state->curr_msg = (MQTTClient_message){
+        .qos = 1,
+        .retained = 0,
+        .payload = (void*)payload,
+        .payloadlen = strlen(payload),
+    };
+
+    MQTTFN(MQTTClient_publishMessage(state->client, state->room_id,
+                                     &state->curr_msg,
+                                     &state->msg_delivery_token),
+           "failed to publish message");
+
+    if ((mqtt_rc = MQTTClient_waitForCompletion(
+             state->client, state->msg_delivery_token, 10000)) ==
+        MQTTREASONCODE_MAXIMUM_CONNECT_TIME)
+        goto end;
+    else
+        nanosleep(&(struct timespec){.tv_sec = 1}, NULL);
+
+end:
+    free((void*)payload);
+}
+
 void init(State* state) {
+    state->connect_opts.keepAliveInterval = 20;
+    state->connect_opts.cleansession = true;
+
     MQTTFN(MQTTClient_create(&state->client, BROKER_ADDR, state->client_name,
                              MQTTCLIENT_PERSISTENCE_NONE, NULL),
            "failed to create client");

@@ -2,6 +2,7 @@
 
 #include <MQTTClient.h>
 #include <stdbool.h>
+#include <time.h>
 
 #define CLEAR_TXT           "\033[2J\033[0;0H"
 #define MQTT_ERROR(comment) fprintf(stderr, comment " (code %d)\n", mqtt_rc)
@@ -17,6 +18,8 @@ typedef struct {
     MQTTClient client;
     MQTTClient_connectOptions
         connect_opts; // = MQTTClient_connectOptions_initializer;
+    MQTTClient_message curr_msg;
+    MQTTClient_deliveryToken msg_delivery_token;
     char* room_id;
     char* client_name;
     const char* exe_path;

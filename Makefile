@@ -1,6 +1,6 @@
 CFLAGS ?= -O2 -Wall -Wpedantic -march=native
 CC ?= cc
-EXTERNAL_DEPS = libpaho-mqtt3c.a libcjson.a
+EXTERNAL_DEPS = libpaho-mqtt3c.a libjson-c.a
 DEP_MAKEOPTS ?= -j4
 
 all: parts copydeps
@@ -19,19 +19,19 @@ clean:
 	make -C server clean
 	make -C client clean
 
-obtaindeps: obtainpaho obtaincjson
+obtaindeps: obtainpaho obtainjsonc
 
 obtainpaho:
 	if [ ! -d ./external/paho-mqtt-c ]; then \
 		git clone https://github.com/eclipse/paho.mqtt.c --depth=1 ./external/paho-mqtt-c; \
 	fi
 
-obtaincjson:
-	if [ ! -d ./external/cJSON ]; then \
-		git clone https://github.com/DaveGamble/cJSON --depth=1 ./external/cJSON; \
+obtainjsonc:
+	if [ ! -d ./external/json-c ]; then \
+		git clone https://github.com/json-c/json-c --depth=1 ./external/json-c; \
 	fi
 
-builddeps: obtaindeps buildpaho buildcjson	
+builddeps: obtaindeps buildpaho buildjsonc	
 
 buildpaho:
 	if [ ! -f ./external/paho-mqtt-c/build/src/libpaho-mqtt3c.a ]; then \
@@ -42,21 +42,21 @@ buildpaho:
 		make $(DEP_MAKEOPTS); \
 	fi
 
-buildcjson:
-	if [ ! -f ./external/cJSON/build/libcjson.a ]; then \
-		cd ./external/cJSON; \
+buildjsonc:
+	if [ ! -f ./external/json-c/build/libjson-c.a ]; then \
+		cd ./external/json-c; \
 		mkdir build; \
 		cd build; \
-		cmake -DENABLE_CJSON_TEST=Off -DBUILD_SHARED_AND_STATIC_LIBS=On ..; \
+		cmake -DBUILD_SHARED_LIBS=OFF ..; \
 		make $(DEP_MAKEOPTS); \
 	fi
 
-copydeps: builddeps copycjson copypaho
+copydeps: builddeps copyjsonc copypaho
 
 copypaho:
 	cp ./external/paho-mqtt-c/build/src/libpaho-mqtt3c.a ./
 
-copycjson:
-	cp ./external/cJSON/build/libcjson.a ./
+copyjsonc:
+	cp ./external/json-c/build/libjson-c.a ./
 
 .PHONY: clean

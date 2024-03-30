@@ -1,4 +1,4 @@
-OBJ = main.o cmds.o common.o
+OBJ = main.o cmds.o common.o packet.o
 CFLAGS ?= -O2 -Wall -Wpedantic -march=native
 CC ?= cc
 
@@ -10,6 +10,7 @@ buildexe: build
 main.o:
 cmds.o:
 common.o:
+packet.o:
 
 clean:
 	rm -f $(OBJ) poochat
