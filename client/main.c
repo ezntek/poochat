@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <MQTTClient.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -5,55 +7,12 @@
 #include <string.h>
 
 #include "cmds.h"
+#include "common.h"
 
-#define CLEAR_TXT           "\033[2J\033[0;0H"
-#define MQTT_ERROR(comment) fprintf(stderr, comment "%d\n", mqtt_rc)
-#define MQTTFN(expr, error)                                                    \
-    if ((mqtt_rc = expr) != MQTTCLIENT_SUCCESS) {                              \
-        MQTT_ERROR(error);                                                     \
-        exit(EXIT_FAILURE);                                                    \
-    }
 #define BROKER_ADDR    "tcp://localhost:1883"
 #define MAX_ROOMID_LEN 50 //
 
-typedef struct {
-    MQTTClient client;
-    MQTTClient_connectOptions
-        connect_opts; // = MQTTClient_connectOptions_initializer;
-    char* room_id;
-    char* client_name;
-} State;
-
-typedef enum {
-    CMD_JOIN,
-    CMD_LEAVE,
-    CMD_HISTORY,
-    CMD_SEND,
-    CMD_HELP,
-    CMD_CLEAR,
-    CMD_QUIT,
-} Command;
-
-static int CMD_NARGS[] = {
-    [CMD_JOIN] = 1, [CMD_LEAVE] = 0, [CMD_HISTORY] = 0, [CMD_SEND] = 1,
-    [CMD_HELP] = 0, [CMD_CLEAR] = 0, [CMD_QUIT] = 0,
-};
-
-static const char* CMD_NAMES[] = {
-    [CMD_JOIN] = "join", [CMD_LEAVE] = "leave", [CMD_HISTORY] = "history",
-    [CMD_SEND] = "send", [CMD_HELP] = "help",   [CMD_CLEAR] = "clear",
-    [CMD_QUIT] = "quit",
-};
-
-static const Command_Fptr CMD_FPTRS[] = {
-    [CMD_JOIN] = &cmd_join,       [CMD_LEAVE] = &cmd_leave,
-    [CMD_HISTORY] = &cmd_history, [CMD_SEND] = &cmd_send,
-    [CMD_HELP] = &cmd_help,       [CMD_CLEAR] = &cmd_clear,
-    [CMD_QUIT] = &cmd_quit,
-};
-
 int mqtt_rc;
-State state;
 
 char* make_room_id(const char* name) {
     char* res = calloc(MAX_ROOMID_LEN + sizeof("poochat/"), 1);
@@ -68,7 +27,7 @@ char* make_room_id(const char* name) {
                 MAX_ROOMID_LEN);
 
     strcpy(res, "poochat/");
-    strlcat(res, name, MAX_ROOMID_LEN);
+    strncat(res, name, MAX_ROOMID_LEN);
 
     return res;
 }
@@ -115,23 +74,23 @@ int on_new_msg(void* _, char* topic_name, int topic_len,
     return 1;
 }
 
-void init(void) {
-    MQTTFN(MQTTClient_create(&state.client, BROKER_ADDR, state.client_name,
+void init(State* state) {
+    MQTTFN(MQTTClient_create(&state->client, BROKER_ADDR, state->client_name,
                              MQTTCLIENT_PERSISTENCE_NONE, NULL),
            "failed to create client");
 
-    MQTTFN(MQTTClient_setCallbacks(state.client, NULL, on_connection_lost,
+    MQTTFN(MQTTClient_setCallbacks(state->client, NULL, on_connection_lost,
                                    on_new_msg, on_delivery),
            "failed to set callbacks");
-    MQTTFN(MQTTClient_connect(state.client, &state.connect_opts),
+    MQTTFN(MQTTClient_connect(state->client, &state->connect_opts),
            "failed to connect to the server");
 }
 
-void deinit(void) {
-    MQTTFN(MQTTClient_disconnect(state.client, 10000),
+void deinit(State* state) {
+    MQTTFN(MQTTClient_disconnect(state->client, 10000),
            "failed to disconnect from the server");
 
-    free(state.room_id);
+    free(state->room_id);
 }
 
 size_t split_cmd(char*** res, const char* cmd) {
@@ -140,11 +99,15 @@ size_t split_cmd(char*** res, const char* cmd) {
     size_t cmd_argc = 0;
     char** cmd_argv = calloc(cmd_cap, sizeof(char*));
 
+    if (cmd_argv == NULL) {
+        perror("calloc");
+        exit(EXIT_FAILURE);
+    }
+
     strcpy(new_buf, cmd);
     char* currtok = strtok(new_buf, " ");
 
     while (currtok != NULL) {
-        currtok = strtok(NULL, " ");
         char* new_part = malloc(strlen(currtok) + 1);
 
         if (new_part == NULL) {
@@ -153,6 +116,7 @@ size_t split_cmd(char*** res, const char* cmd) {
         }
 
         strcpy(new_part, currtok);
+        currtok = strtok(NULL, " ");
 
         if (cmd_argc + 1 > cmd_cap) {
             cmd_argv = realloc(cmd_argv, sizeof(char*) * (cmd_cap *= 5));
@@ -170,7 +134,7 @@ size_t split_cmd(char*** res, const char* cmd) {
     return cmd_argc;
 }
 
-bool eval_cmd(const char* cmd) {
+bool eval_cmd(State* state, const char* cmdtxt) {
     // join mychannel
     // leave
     // history
@@ -178,46 +142,54 @@ bool eval_cmd(const char* cmd) {
     // help
 
     char** cmd_argv = NULL;
-    size_t cmd_argc = split_cmd(&cmd_argv, cmd);
+    size_t cmd_argc = split_cmd(&cmd_argv, cmdtxt);
+    Command cmd;
 
-    if (!strcmp(cmd_argv[0], CMD_NAMES[CMD_CLEAR])) {
-        printf(CLEAR_TXT);
-    } else if (!strcmp(cmd_argv[0], CMD_NAMES[CMD_QUIT])) {
-        return true;
+    if ((cmd = get_cmd_from_name(cmd_argv[0])) == CMD_INVALID) {
+        puts("invalid command");
+        goto end;
     }
 
+    bool cmd_rval = CMD_FPTRS[cmd](cmd_argc, cmd_argv, state);
+    if (cmd_rval)
+        return true;
+
+end:
+    for (size_t i = 0; i < cmd_argc; i++)
+        free(cmd_argv[i]);
     free(cmd_argv);
     return false;
 }
 
 int main(int argc, char** argv) {
-    state = (State){.connect_opts = MQTTClient_connectOptions_initializer,
-                    .client_name = "!!DEFAULT CLIENT NAME!!",
-                    .room_id = make_room_id("")};
+    State state = {.connect_opts = MQTTClient_connectOptions_initializer,
+                   .client_name = "!!DEFAULT CLIENT NAME!!",
+                   .room_id = make_room_id(""),
+                   .exe_path = argv[0]};
 
     char* msg;
     bool should_exit = false;
 
     if (argc == 1) {
-        printf("usage: poochat [Client ID]");
+        cmd_help(NULL, NULL, &state);
         exit(EXIT_FAILURE);
     } else {
         state.client_name = argv[1];
     }
 
-    init();
+    init(&state);
 
     while (!should_exit) {
         msg = read_msg();
         if (msg == NULL)
             continue;
 
-        should_exit = eval_cmd(msg);
+        should_exit = eval_cmd(&state, msg);
 
         free(msg);
     }
 
-    deinit();
+    deinit(&state);
 
     return 0;
 }

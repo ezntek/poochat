@@ -1,36 +1,62 @@
 CFLAGS ?= -O2 -Wall -Wpedantic -march=native
 CC ?= cc
-PAHO_MAKEOPTS ?= -j4
-PAHO_CMAKEOPTS = 
+EXTERNAL_DEPS = libpaho-mqtt3c.a libcjson.a
+DEP_MAKEOPTS ?= -j4
 
-all: parts builddeps
-	cp ./external/paho-mqtt-c/build/src/libpaho-mqtt3c.a ./
-	$(CC) -o poochat-server server/*.o libpaho-mqtt3c.a
-	$(CC) -o poochat client/*.o libpaho-mqtt3c.a
+all: parts copydeps
+	$(CC) -o poochat-server server/*.o $(EXTERNAL_DEPS)
+	$(CC) -o poochat client/*.o $(EXTERNAL_DEPS)
 
 parts:
 	make -C server build
 	make -C client build
 
-clean:
-	make -C server clean
-	make -C client clean
+cleanall: clean	
 	rm -f *.a 
 	rm -rf ./external/*
 
-obtaindeps:
+clean:
+	make -C server clean
+	make -C client clean
+
+obtaindeps: obtainpaho obtaincjson
+
+obtainpaho:
 	if [ ! -d ./external/paho-mqtt-c ]; then \
 		git clone https://github.com/eclipse/paho.mqtt.c --depth=1 ./external/paho-mqtt-c; \
 	fi
 
-builddeps: obtaindeps
+obtaincjson:
+	if [ ! -d ./external/cJSON ]; then \
+		git clone https://github.com/DaveGamble/cJSON --depth=1 ./external/cJSON; \
+	fi
+
+builddeps: obtaindeps buildpaho buildcjson	
+
+buildpaho:
 	if [ ! -f ./external/paho-mqtt-c/build/src/libpaho-mqtt3c.a ]; then \
 		cd ./external/paho-mqtt-c; \
 			mkdir build; \
 			cd build; \
-			cmake -DPAHO_BUILD_SHARED=FALSE -DPAHO_BUILD_STATIC=TRUE -DPAHO_HIGH_PERFORMANCE=FALSE $(PAHO_CMAKEOPTS) ..; \
-		make $(PAHO_MAKEOPTS); \
+			cmake -DPAHO_BUILD_SHARED=FALSE -DPAHO_BUILD_STATIC=TRUE -DPAHO_HIGH_PERFORMANCE=FALSE ..; \
+		make $(DEP_MAKEOPTS); \
 	fi
 
+buildcjson:
+	if [ ! -f ./external/cJSON/build/libcjson.a ]; then \
+		cd ./external/cJSON; \
+		mkdir build; \
+		cd build; \
+		cmake -DENABLE_CJSON_TEST=Off -DBUILD_SHARED_AND_STATIC_LIBS=On ..; \
+		make $(DEP_MAKEOPTS); \
+	fi
+
+copydeps: builddeps copycjson copypaho
+
+copypaho:
+	cp ./external/paho-mqtt-c/build/src/libpaho-mqtt3c.a ./
+
+copycjson:
+	cp ./external/cJSON/build/libcjson.a ./
 
 .PHONY: clean
