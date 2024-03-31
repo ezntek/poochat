@@ -60,4 +60,4 @@ void recv_msg(char* topic_name, size_t topic_len, const char* payload,
               size_t payload_len);
 
 char* make_room_id(const char* name);
-char* read_cmd(void);
+char* read_cmd(State* state);

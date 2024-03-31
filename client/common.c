@@ -85,10 +85,13 @@ char* make_room_id(const char* name) {
     return res;
 }
 
-char* read_cmd(void) {
+char* read_cmd(State* state) {
     char* line = NULL;
+    char* room = state->room_id;
 
-    printf("> ");
+    if (room == NULL)
+        room = "no room";
+    printf("%s> ", room);
 
     if (getline(&line, &(size_t){0}, stdin) == -1) {
         perror("getline");

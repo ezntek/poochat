@@ -72,6 +72,11 @@ CLIENTCMD(room) {
     const char* subcmd = argv[0];
 
     if (!strcmp(subcmd, "join")) {
+        if (state->room_id != NULL) {
+            fprintf(stderr, "already joined room `%s`\n", state->room_id);
+            return false;
+        }
+
         state->room_id = malloc(strlen(argv[1]));
 
         if (state->room_id == NULL) {

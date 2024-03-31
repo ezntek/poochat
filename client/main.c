@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
     init(&state);
 
     while (!should_exit) {
-        msg = read_cmd();
+        msg = read_cmd(&state);
         if (msg == NULL)
             continue;
 
