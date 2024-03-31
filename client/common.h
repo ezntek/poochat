@@ -36,24 +36,28 @@ typedef enum {
     CMD_CLEAR,
     CMD_QUIT,
     CMD_EXIT,
+    CMD_ROOM,
     CMD_INVALID,
 } Command;
 
 static int CMD_NARGS[] = {
-    [CMD_JOIN] = 1, [CMD_LEAVE] = 0, [CMD_HISTORY] = 0, [CMD_SEND] = 1,
-    [CMD_HELP] = 0, [CMD_CLEAR] = 0, [CMD_QUIT] = 0,    [CMD_EXIT] = 0,
+    [CMD_JOIN] = 1, [CMD_LEAVE] = 0, [CMD_HISTORY] = 0,
+    [CMD_SEND] = 1, [CMD_HELP] = 0,  [CMD_CLEAR] = 0,
+    [CMD_QUIT] = 0, [CMD_EXIT] = 0,  [CMD_ROOM] = 2,
 };
 
 static const char* CMD_NAMES[] = {
-    [CMD_JOIN] = "join",
-    [CMD_LEAVE] = "leave",
-    [CMD_HISTORY] = "history",
-    [CMD_SEND] = "send",
-    [CMD_HELP] = "help",
-    [CMD_CLEAR] = "clear",
-    [CMD_EXIT] = "exit",
-    [CMD_QUIT] = "quit",
-    [CMD_INVALID] = "!! INVALID COMMAND !!",
+    [CMD_JOIN] = "join",       [CMD_LEAVE] = "leave",
+    [CMD_HISTORY] = "history", [CMD_SEND] = "send",
+    [CMD_HELP] = "help",       [CMD_CLEAR] = "clear",
+    [CMD_EXIT] = "exit",       [CMD_QUIT] = "quit",
+    [CMD_ROOM] = "room",       [CMD_INVALID] = "!! INVALID COMMAND !!",
 };
 
 Command get_cmd_from_name(const char* name);
+void send_msg(State* state, const char* txt);
+void recv_msg(char* topic_name, size_t topic_len, const char* payload,
+              size_t payload_len);
+
+char* make_room_id(const char* name);
+char* read_cmd(void);

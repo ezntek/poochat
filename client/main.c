@@ -9,54 +9,13 @@
 
 #include "cmds.h"
 #include "common.h"
-#include "packet.h"
 
-#define BROKER_ADDR    "tcp://localhost:1883"
-#define MAX_ROOMID_LEN 50 //
+#define BROKER_ADDR "tcp://localhost:1883"
 
 int mqtt_rc;
 
-char* make_room_id(const char* name) {
-    char* res = calloc(MAX_ROOMID_LEN + sizeof("poochat/"), 1);
-
-    if (res == NULL) {
-        perror("realloc");
-        exit(EXIT_FAILURE);
-    }
-
-    if (strlen(name) > MAX_ROOMID_LEN)
-        fprintf(stderr, "room name too long, truncating to %d characters\n",
-                MAX_ROOMID_LEN);
-
-    strcpy(res, "poochat/");
-    strncat(res, name, MAX_ROOMID_LEN);
-
-    return res;
-}
-
-char* read_msg(void) {
-    char* line = NULL;
-
-    printf("> ");
-
-    if (getline(&line, &(size_t){0}, stdin) == -1) {
-        perror("getline");
-        exit(EXIT_FAILURE);
-    }
-
-    if (line[0] == '\n')
-        return NULL;
-
-    if (line[strlen(line) - 1] != '\n')
-        putchar('\n');
-    else
-        line[strlen(line) - 1] = '\0';
-
-    return line;
-}
-
 void on_delivery(void* _, MQTTClient_deliveryToken deliver_tok) {
-    fprintf(stderr, "message delivered with token %d", deliver_tok);
+    fprintf(stderr, "message delivered with token %d\n", deliver_tok);
 }
 
 void on_connection_lost(void* _, char* cause) {
@@ -68,42 +27,12 @@ void on_connection_lost(void* _, char* cause) {
 int on_new_msg(void* _, char* topic_name, int topic_len,
                MQTTClient_message* msg) {
     char* data = msg->payload;
-    fprintf(stderr, "got some data! (\"%s\" from topic \"%s\")", data,
-            topic_name);
+
+    recv_msg(topic_name, (size_t)topic_len, data, msg->payloadlen);
 
     MQTTClient_freeMessage(&msg);
     MQTTClient_free(topic_name);
     return 1;
-}
-
-void send_msg(State* state, const char* txt) {
-    time_t tm;
-    time(&tm);
-
-    Packet pk = Packet_new(state->client_name, tm, txt);
-    const char* payload = Packet_to_json(&pk);
-
-    state->curr_msg = (MQTTClient_message){
-        .qos = 1,
-        .retained = 0,
-        .payload = (void*)payload,
-        .payloadlen = strlen(payload),
-    };
-
-    MQTTFN(MQTTClient_publishMessage(state->client, state->room_id,
-                                     &state->curr_msg,
-                                     &state->msg_delivery_token),
-           "failed to publish message");
-
-    if ((mqtt_rc = MQTTClient_waitForCompletion(
-             state->client, state->msg_delivery_token, 10000)) ==
-        MQTTREASONCODE_MAXIMUM_CONNECT_TIME)
-        goto end;
-    else
-        nanosleep(&(struct timespec){.tv_sec = 1}, NULL);
-
-end:
-    free((void*)payload);
 }
 
 void init(State* state) {
@@ -198,8 +127,9 @@ end:
 
 int main(int argc, char** argv) {
     State state = {.connect_opts = MQTTClient_connectOptions_initializer,
+                   .curr_msg = MQTTClient_message_initializer,
                    .client_name = "!!DEFAULT CLIENT NAME!!",
-                   .room_id = make_room_id(""),
+                   .room_id = NULL,
                    .exe_path = argv[0]};
 
     char* msg;
@@ -215,7 +145,7 @@ int main(int argc, char** argv) {
     init(&state);
 
     while (!should_exit) {
-        msg = read_msg();
+        msg = read_cmd();
         if (msg == NULL)
             continue;
 

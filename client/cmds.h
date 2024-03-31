@@ -10,6 +10,7 @@ CLIENTCMD(send);
 CLIENTCMD(help);
 CLIENTCMD(clear);
 CLIENTCMD(quit);
+CLIENTCMD(room);
 CLIENTCMD(exit);
 
 static const Command_Fptr CMD_FPTRS[] = {
@@ -17,4 +18,5 @@ static const Command_Fptr CMD_FPTRS[] = {
     [CMD_HISTORY] = &cmd_history, [CMD_SEND] = &cmd_send,
     [CMD_HELP] = &cmd_help,       [CMD_CLEAR] = &cmd_clear,
     [CMD_QUIT] = &cmd_quit,       [CMD_EXIT] = &cmd_exit,
+    [CMD_ROOM] = &cmd_room,
 };
